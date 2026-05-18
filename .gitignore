@@ -51,3 +51,9 @@ coverage/
 
 # Alembic
 backend/alembic/versions/*.pyc
+
+# Harness-generated output files
+circle.svg
+merge_sort.py
+generated_api.py
+*.generated.py

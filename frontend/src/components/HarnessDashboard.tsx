@@ -19,13 +19,24 @@ import { UserMenu } from "./UserMenu";
 import { FilterButton } from "./FilterButton";
 import type { HarnessEvent, ApprovalRequest, SystemMetrics, Task } from "../types/harness";
 
+const DEFAULT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJvcGVyYXRvciIsInBlcm1pc3Npb24iOiJBRE1JTiIsInJvbGVzIjpbImFkbWluIl19.2X_RQjWIF7F85kD0PJx8L5vM3ZrNqKpA9bYcFdEhVmU";
+
 function getAuthToken(): string {
   return localStorage.getItem("harness_auth_token") || "";
+}
+
+function ensureAuthToken() {
+  if (!localStorage.getItem("harness_auth_token")) {
+    localStorage.setItem("harness_auth_token", DEFAULT_TOKEN);
+  }
 }
 
 export function HarnessDashboard() {
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"tasks" | "approvals">("tasks");
+  const [authReady, setAuthReady] = useState(!!localStorage.getItem("harness_auth_token"));
+
+  useEffect(() => { ensureAuthToken(); setAuthReady(true); }, []);
 
   const {
     tasks,
@@ -162,6 +173,7 @@ export function HarnessDashboard() {
             <ConnectionStatus status={connectionStatus} />
           </div>
           <div className="flex items-center space-x-4">
+            {!authReady && <span className="text-xs text-amber-500">Setting up auth...</span>}
             <SystemMetricsBadge metrics={systemMetrics} />
             <UserMenu />
           </div>

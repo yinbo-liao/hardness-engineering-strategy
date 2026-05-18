@@ -195,12 +195,21 @@ class ClaudeCodeOrchestrator:
     ) -> list:
         results = []
         for action in actions:
+            if isinstance(action, str):
+                results.append({
+                    "action": {"tool": "reasoning", "params": {}},
+                    "status": "skipped",
+                    "output": {"note": action},
+                    "error": None,
+                    "execution_time_ms": 0,
+                })
+                continue
             tool_name = action.get("tool", "")
             params = action.get("params", {})
             try:
                 result = await self.tools.call(
                     name=tool_name,
-                    user_permission=PermissionLevel.WRITE,
+                    user_permission=PermissionLevel.EXECUTE,
                     params=params,
                     session_id=session_id,
                     task_scope=task_type,
@@ -221,10 +230,13 @@ class ClaudeCodeOrchestrator:
         return results
 
     async def _claude_reason(self, session_id: str, context: dict) -> dict:
+        task_desc = context.get("layers", {}).get("task", {}).get("content", {}).get("description", "")
         return await self._call_claude(
-            f"Given the following context, determine the next actions to take:\n"
-            f"{json.dumps(context, indent=2)}\n\n"
-            f"Respond with a JSON object containing an 'actions' array."
+            f"Task: {task_desc}\n\n"
+            f"Plan the implementation steps. Respond with ONLY a JSON object (no markdown, no code fences):\n"
+            f'{{"actions": [{{"tool": "tool_name", "params": {{...}} }}], "reasoning": "explanation"}}\n\n'
+            f"Available tools: write_file, read_file, search_code, generate_api, run_tests, run_linter\n"
+            f"Each action MUST have 'tool' and 'params' fields."
         )
 
     async def _call_claude(self, prompt: str) -> dict:

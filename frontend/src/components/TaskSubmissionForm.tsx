@@ -39,7 +39,7 @@ export function TaskSubmissionForm({ onSubmit }: TaskSubmissionFormProps) {
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Describe what you want to build... (e.g., 'Add a FastAPI endpoint for user login with JWT auth')"
         rows={3}
-        className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+        className="w-full px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none placeholder:text-gray-400"
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
         }}
@@ -49,7 +49,7 @@ export function TaskSubmissionForm({ onSubmit }: TaskSubmissionFormProps) {
         <select
           value={taskType}
           onChange={(e) => setTaskType(e.target.value)}
-          className="px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {TASK_TYPES.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
