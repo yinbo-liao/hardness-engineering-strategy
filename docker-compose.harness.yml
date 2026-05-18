@@ -1,0 +1,204 @@
+version: "3.8"
+
+services:
+  # === Control Plane ===
+  harness-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/harness-orchestrator.Dockerfile
+    container_name: harness-orchestrator
+    environment:
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      - DATABASE_URL=postgresql+asyncpg://harness:${DB_PASSWORD:-harness}@postgres:5432/harness
+      - REDIS_URL=redis://redis:6379/0
+      - SANDBOX_NETWORK=none
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    volumes:
+      - ./backend:/workspace/backend:ro
+      - harness-state:/data/state
+      - harness-logs:/data/logs
+    networks:
+      - harness-internal
+      - harness-external
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # === Sandbox Worker ===
+  harness-sandbox:
+    build:
+      context: .
+      dockerfile: docker/harness-sandbox.Dockerfile
+    container_name: harness-sandbox
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m,uid=1000,gid=1000
+      - /workspace/tmp:noexec,nosuid,size=500m,uid=1000,gid=1000
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./docker/seccomp-profile.json
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    user: "1000:1000"
+    volumes:
+      - type: bind
+        source: ./workspace
+        target: /workspace
+        read_only: false
+      - type: tmpfs
+        target: /workspace/output
+        tmpfs:
+          size: 500M
+          mode: 1777
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    command: ["python", "-m", "harness.sandbox_worker"]
+
+  # === Frontend (Vite + React) ===
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: harness-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+      - VITE_APP_NAME=Harness Control Center
+    volumes:
+      - ./frontend:/app:cached
+      - /app/node_modules
+    networks:
+      - harness-external
+    depends_on:
+      - harness-orchestrator
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # === Database ===
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: harness-postgres
+    environment:
+      - POSTGRES_USER=harness
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-harness}
+      - POSTGRES_DB=harness
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - harness-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harness -d harness"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+
+  # === Cache ===
+  redis:
+    image: redis:7-alpine
+    container_name: harness-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - harness-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # === Reverse Proxy ===
+  nginx:
+    image: nginx:alpine
+    container_name: harness-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - harness-external
+    depends_on:
+      - harness-orchestrator
+      - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  harness-state:
+    driver: local
+  harness-logs:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  harness-internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+  harness-external:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

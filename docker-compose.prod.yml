@@ -1,0 +1,109 @@
+version: "3.8"
+
+services:
+  harness-orchestrator:
+    extends:
+      file: docker-compose.harness.yml
+      service: harness-orchestrator
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=WARNING
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+      replicas: 2
+
+  harness-sandbox:
+    extends:
+      file: docker-compose.harness.yml
+      service: harness-sandbox
+    deploy:
+      replicas: 3
+
+  frontend:
+    extends:
+      file: docker-compose.harness.yml
+      service: frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+
+  postgres:
+    extends:
+      file: docker-compose.harness.yml
+      service: postgres
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+
+  redis:
+    extends:
+      file: docker-compose.harness.yml
+      service: redis
+    restart: unless-stopped
+
+  nginx:
+    extends:
+      file: docker-compose.harness.yml
+      service: nginx
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: harness-prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    networks:
+      - harness-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: harness-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - harness-internal
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: harness-alertmanager
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    networks:
+      - harness-internal
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

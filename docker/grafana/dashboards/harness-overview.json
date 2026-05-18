@@ -1,0 +1,85 @@
+{
+  "title": "Harness Control Plane - Overview",
+  "uid": "harness-overview",
+  "panels": [
+    {
+      "title": "Active Tasks",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "harness_tasks_active",
+          "legendFormat": "Active"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "Completed Tasks (24h)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "harness_tasks_completed_total",
+          "legendFormat": "Completed"
+        }
+      ],
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "Failed Tasks (24h)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "harness_tasks_failed_total",
+          "legendFormat": "Failed"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 }
+    },
+    {
+      "title": "Task Execution Time (p50/p95/p99)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "harness_task_duration_seconds",
+          "legendFormat": "{{quantile}}"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 }
+    },
+    {
+      "title": "Approval Queue Depth",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "harness_approvals_pending",
+          "legendFormat": "Pending"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 }
+    },
+    {
+      "title": "Cost Per Task",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "harness_cost_total",
+          "legendFormat": "Cost ($)"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 6 }
+    },
+    {
+      "title": "Agent Loop Iterations",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "harness_loop_iterations",
+          "legendFormat": "Iterations"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 6 }
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}

@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+rule_files:
+  - "alerts/*.yml"
+
+scrape_configs:
+  - job_name: "harness-orchestrator"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - harness-orchestrator:8000
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "harness-orchestrator"
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets:
+          - localhost:9090
