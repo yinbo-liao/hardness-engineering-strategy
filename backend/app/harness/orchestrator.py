@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import httpx
+
+from backend.app.config import get_settings
 from backend.app.harness.planner import TaskNode, TaskPlanner, TaskStatus
 from backend.app.harness.context_manager import ContextManager
 from backend.app.harness.tool_registry import (
@@ -225,8 +228,89 @@ class ClaudeCodeOrchestrator:
         )
 
     async def _call_claude(self, prompt: str) -> dict:
-        # Stub — in production, this calls the Claude API via MCP
-        return {"actions": [], "reasoning": "stub"}
+        settings = get_settings()
+        api_key = settings.CLAUDE_API_KEY
+        model = settings.CLAUDE_MODEL
+
+        if not api_key:
+            return {"actions": [], "reasoning": "no_api_key_configured"}
+
+        model_lower = model.lower()
+
+        if "deepseek" in model_lower or "gpt" in model_lower or "openai" in model_lower:
+            return await self._call_openai_compatible(prompt, api_key, model)
+        else:
+            return await self._call_anthropic(prompt, api_key, model)
+
+    async def _call_anthropic(self, prompt: str, api_key: str, model: str) -> dict:
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": 2048,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
+                return self._parse_response(response)
+        except Exception as e:
+            return {"actions": [], "reasoning": f"API call failed: {str(e)[:200]}"}
+
+    async def _call_openai_compatible(self, prompt: str, api_key: str, model: str) -> dict:
+        base_url = "https://api.deepseek.com"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(180.0)) as client:
+                response = await client.post(
+                    f"{base_url}/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": 2048,
+                        "temperature": 0.1,
+                        "messages": [
+                            {"role": "system", "content": "You are a task planning agent. Respond ONLY with valid JSON containing an 'actions' array and a 'reasoning' string. No markdown, no code fences."},
+                            {"role": "user", "content": prompt},
+                        ],
+                    },
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    text = data["choices"][0]["message"]["content"]
+                    text = text.strip().removeprefix("```json").removesuffix("```").strip()
+                    try:
+                        return json.loads(text)
+                    except json.JSONDecodeError:
+                        return {"actions": [], "reasoning": text[:500]}
+                else:
+                    return {
+                        "actions": [],
+                        "reasoning": f"API {response.status_code}: {response.text[:200]}",
+                    }
+        except Exception as e:
+            return {"actions": [], "reasoning": f"API failed: {str(e)[:200]}"}
+
+    @staticmethod
+    def _parse_response(response) -> dict:
+        if response.status_code == 200:
+            data = response.json()
+            text = data["content"][0]["text"]
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return {"actions": [], "reasoning": text[:500]}
+        return {
+            "actions": [],
+            "reasoning": f"API error {response.status_code}: {response.text[:200]}",
+        }
 
     def _update_context_with_feedback(
         self, context: dict, evaluation: dict, results: list
