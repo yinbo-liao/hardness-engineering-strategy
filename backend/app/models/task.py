@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, DateTime, JSON, Enum as SAEnum
+from sqlalchemy import String, Integer, Float, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from backend.app.db.session import Base
 import enum
@@ -21,8 +21,8 @@ class Task(Base):
     )
     description: Mapped[str] = mapped_column(String(1024), nullable=False)
     task_type: Mapped[str] = mapped_column(String(32), nullable=False, default="code")
-    status: Mapped[TaskStatus] = mapped_column(
-        SAEnum(TaskStatus), default=TaskStatus.PENDING, nullable=False
+    status: Mapped[str] = mapped_column(
+        String(32), default="pending", nullable=False
     )
     priority: Mapped[int] = mapped_column(Integer, default=5)
     deps: Mapped[list] = mapped_column(JSON, default=list)

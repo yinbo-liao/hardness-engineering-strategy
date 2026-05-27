@@ -39,7 +39,7 @@ export function HardnessDashboard() {
     updateMetrics,
   } = useHardnessStore();
 
-  const wsUrl = `ws://127.0.0.1:8000/api/v1/Hardness/ws/main`;
+  const wsUrl = `ws://127.0.0.1:8001/api/v1/Hardness/ws/main`;
   const { lastMessage, sendMessage, connectionStatus } = useWebSocket(wsUrl);
 
   useEffect(() => {

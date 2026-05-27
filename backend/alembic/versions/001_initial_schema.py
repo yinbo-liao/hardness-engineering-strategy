@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("task_type", sa.String(32), nullable=False, server_default="code"),
         sa.Column(
             "status",
-            sa.Enum("pending", "running", "completed", "failed", name="taskstatus"),
+            sa.String(32),
             nullable=False,
             server_default="pending",
         ),
@@ -140,4 +140,4 @@ def downgrade() -> None:
     op.drop_table("Hardness_events")
     op.drop_table("Hardness_checkpoints")
     op.drop_table("Hardness_tasks")
-    op.execute("DROP TYPE IF EXISTS taskstatus")
+    # taskstatus type no longer used — column is varchar

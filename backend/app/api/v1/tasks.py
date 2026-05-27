@@ -54,7 +54,7 @@ async def create_task(
         id=task_id,
         description=description,
         task_type=task_type,
-        status=DBTaskStatus.PENDING,
+        status="pending",
         deps=deps,
         timeout_seconds=timeout_seconds,
     )
@@ -92,7 +92,7 @@ async def _execute_task(node: TaskNode, orchestrator, app):
             # Update DB
             db_task = await session.get(TaskModel, node.id)
             if db_task:
-                db_task.status = DBTaskStatus.COMPLETED
+                db_task.status = "completed"
                 db_task.result = result
 
             await state_store.save_checkpoint(
@@ -116,7 +116,7 @@ async def _execute_task(node: TaskNode, orchestrator, app):
                 state_store = StateStore(session)
                 db_task = await session.get(TaskModel, node.id)
                 if db_task:
-                    db_task.status = DBTaskStatus.FAILED
+                    db_task.status = "failed"
                     db_task.error_log = node.error_log
                 await state_store.save_checkpoint(
                     task_id=node.id,

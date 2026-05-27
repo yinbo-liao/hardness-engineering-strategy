@@ -164,7 +164,6 @@ async def lifespan(app: FastAPI):
         max_iterations=settings.MAX_ITERATIONS,
         max_cost_per_task=settings.MAX_COST_PER_TASK,
         websocket_manager=ws_manager,
-        notification_service=notification_service,
     )
     yield
 

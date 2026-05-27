@@ -54,7 +54,7 @@ export function AuditLogViewer({ maxEntries = 50 }: AuditLogViewerProps) {
         <div className="space-y-1 max-h-[300px] overflow-y-auto">
           {entries.map((entry, i) => (
             <div
-              key={entry.entry_id || i}
+              key={`${entry.entry_id || entry.timestamp}-${i}`}
               className="flex items-center gap-2 py-1.5 px-2 rounded text-xs border-b border-gray-100 dark:border-gray-800 last:border-0"
             >
               <span className={`font-medium w-12 shrink-0 ${riskColors[entry.risk_level] ?? "text-gray-500"}`}>

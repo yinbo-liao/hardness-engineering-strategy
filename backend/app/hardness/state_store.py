@@ -72,7 +72,7 @@ class StateStore:
     ) -> HardnessEvent:
         max_seq_result = await self.session.execute(
             text(
-                "SELECT COALESCE(MAX(sequence), -1) FROM Hardness_events "
+                "SELECT COALESCE(MAX(sequence), -1) FROM \"Hardness_events\" "
                 "WHERE task_id = :tid"
             ),
             {"tid": task_id},
