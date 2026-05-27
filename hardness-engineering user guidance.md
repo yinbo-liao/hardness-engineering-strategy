@@ -329,6 +329,192 @@ pytest tests/ --cov=hardness_plugin --cov-report=term
 
 ---
 
+## Scope Reference
+
+Each governance rule applies to specific project scopes. Choose the right scope for accurate checking:
+
+| Scope | Applies To | Active Rules |
+|-------|-----------|-------------|
+| **api** | Backend endpoints, FastAPI, REST APIs | no_blocking_io, type_safety, sql_injection_prevention, no_circular_imports, test_coverage |
+| **ui** | Frontend components, React, CSS | type_safety, no_circular_imports, test_coverage |
+| **db** | Database models, migrations, queries | no_blocking_io, sql_injection_prevention, test_coverage |
+| **infra** | Docker, CI/CD, deployment configs | no_blocking_io, secret_detection |
+| **test** | Test files, fixtures, mocks | type_safety |
+| **security** | Auth, encryption, secrets management | All rules — no scope filtering |
+| **general** | Catch-all (default) | Forbidden actions only (eval, exec) — most rules skipped |
+| **code** | General Python/TypeScript modules | type_safety, secret_detection, no_circular_imports, test_coverage |
+
+Run `hardness check --scope security` for the most thorough check. Use `--scope api` when working on backend code.
+
+---
+
+## Example Workflow
+
+Here's a complete session showing the plugin in action:
+
+```bash
+# 1. Initialize Hardness in your project
+$ hardness init --scope api
+Created .hardness/config.yaml
+
+# 2. Claude generates code (via Claude Code)
+# Claude writes: src/auth.py with JWT authentication logic
+
+# 3. Plugin auto-checks the file (PostToolUse hook)
+# Behind the scenes: hardness check --files src/auth.py
+
+# 4. Manually evaluate quality
+$ hardness evaluate --path src/auth.py
+┌──────────────────────────────────────────────────────────────┐
+│ File        │ Score  │ Tests │ Types │ Lint │ Security │ Status │
+├─────────────┼────────┼───────┼───────┼──────┼──────────┼────────┤
+│ src/auth.py │ 85.5%  │ PASS  │ PASS  │ PASS │ PASS     │ PASS   │
+└──────────────────────────────────────────────────────────────┘
+
+# 5. Check governance before committing
+$ hardness check --path src/
+No violations in 3 file(s)   # Clean — ready to commit
+
+# 6. Commit and push
+$ git add src/ && git commit -m "Add JWT auth module"
+$ git push   # PreToolUse hook runs security scan before push
+```
+
+Within Claude Code, the same workflow uses slash commands:
+
+```
+/hardness:plan "Add JWT authentication with refresh tokens"
+[Claude generates the implementation]
+
+/hardness:evaluate
+[Shows quality scores for generated files]
+
+/hardness:check
+[Verifies no constraint violations]
+```
+
+---
+
+## Extending the Plugin
+
+### Adding Custom Governance Rules
+
+Create a wrapper that extends the `Governance` class:
+
+```python
+from hardness_plugin.governance import Governance, ConstraintRule, RiskLevel
+
+gov = Governance()
+
+# Add a custom rule
+def check_no_todo_comments(params: dict) -> dict:
+    content = params.get("content", "")
+    todos = content.count("TODO") + content.count("FIXME")
+    return {
+        "passed": todos <= 3,
+        "message": f"Found {todos} TODO/FIXME comments (max 3 allowed)",
+        "suggestion": "Resolve or track TODOs before merging",
+    }
+
+gov.constraint_rules.append(
+    ConstraintRule(
+        id="no_excessive_todos",
+        description="Limit TODO/FIXME comments to 3 per file",
+        check_function=check_no_todo_comments,
+        severity=RiskLevel.MEDIUM,
+        scope=["code", "api", "ui"],
+        auto_fix=False,
+    )
+)
+
+# Run with the custom rule
+result = gov.check_constraint("write_file", {"content": code}, "api")
+```
+
+### Custom Evaluation Dimensions
+
+Use the `evaluator` module programmatically and add your own dimensions:
+
+```python
+from hardness_plugin.evaluator import evaluate_code_quality
+
+# Run built-in evaluation
+result = evaluate_code_quality("src/module.py", content)
+
+# Add a custom dimension post-hoc
+doc_count = content.count('"""') // 2
+func_count = content.count("def ")
+result["dimensions"]["documentation"] = {
+    "passed": doc_count >= func_count,
+    "score": min(1.0, doc_count / max(1, func_count)),
+    "details": {"functions": func_count, "docstrings": doc_count},
+}
+```
+
+---
+
+## CI/CD Integration
+
+Add Hardness to your CI pipeline for automated governance gates:
+
+### GitHub Actions
+
+```yaml
+name: Hardness Check
+on: [push, pull_request]
+
+jobs:
+  hardness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: hardness check --path . --scope security --json > report.json
+      - name: Fail on violations
+        run: |
+          PASSED=$(python -c "import json; print(json.load(open('report.json'))['passed'])")
+          if [ "$PASSED" != "True" ]; then
+            echo "Governance violations found"
+            cat report.json
+            exit 1
+          fi
+```
+
+### Pre-commit Hook
+
+```bash
+# .git/hooks/pre-commit
+#!/bin/bash
+hardness check --path . --scope api
+if [ $? -ne 0 ]; then
+    echo "Hardness check failed. Fix violations before committing."
+    exit 1
+fi
+```
+
+---
+
+## Migration from v1 (Web Application)
+
+If you used the previous Hardness Engineering web application (FastAPI + React + Docker):
+
+| v1 Feature | v2 Equivalent |
+|-----------|---------------|
+| Web dashboard at `localhost:3000` | Slash commands in Claude Code |
+| `POST /api/v1/Hardness/tasks` | `hardness plan "..."` + `hardness check` |
+| Agent Loop Visualizer | Claude Code's built-in agent loop |
+| WebSocket real-time updates | Hook-based file watching |
+| PostgreSQL + Redis | No database needed |
+| Docker sandbox | Claude Code's built-in Bash sandbox |
+| MCP server (`Hardness serve`) | Direct CLI invocation |
+
+The governance rules, evaluation dimensions, and constraint logic are identical — only the delivery mechanism changed from a web server to a CLI plugin.
+
+---
+
 ## Troubleshooting
 
 ### Changes not being checked
@@ -374,4 +560,4 @@ Claude Code Session
 
 ---
 
-*Document version: 2.0 — Last updated: 2026-05-27*
+*Document version: 2.1 — Last updated: 2026-05-27*
