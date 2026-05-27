@@ -1,10 +1,12 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Repository Overview
 
-This is the **Hardness Engineering** system — a control plane that transforms Claude Code from an interactive coding assistant into a managed, governable, recoverable agent. The master blueprint is `Hardness_engineering_strategy.md`.
+This is the **Hardness Engineering** plugin for Claude Code — a governance, evaluation, and task planning toolkit that enforces code quality and security constraints within Claude Code sessions.
+
+The master reference document is `Hardness_engineering_strategy.md`.
 
 ## Core Philosophy
 
@@ -13,134 +15,97 @@ This is the **Hardness Engineering** system — a control plane that transforms 
 ## Commands
 
 ```bash
-# Backend
-cd backend
-python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\Activate.ps1 on Windows
-pip install -r requirements.txt
-uvicorn backend.app.main:app --reload --port 8000     # dev server
+# Plugin CLI (all commands)
+hardness --help
 
-# Frontend
-cd frontend
-npm install
-npm run dev                                           # Vite dev server on :3000
-npm run build                                         # TypeScript check + production build
+# Initialize per-project config
+hardness init --scope api
 
-# Testing
-cd backend
-pytest tests/ -v                                      # all tests (159 currently)
-pytest tests/test_planner.py -v                       # single test file
-pytest tests/ -q                                      # quick run
+# Run governance constraint checks
+hardness check --path .
+hardness check --files path/to/file.py
+hardness check --path . --json       # machine-readable output
 
-# Docker
-docker-compose -f docker-compose.Hardness.yml up       # full stack
-docker-compose -f docker-compose.Hardness.yml up -d    # detached
+# Multi-dimensional quality evaluation
+hardness evaluate --path src/
+hardness evaluate --path src/ --json
 
-# Alembic
-cd backend
-alembic upgrade head                                  # apply migrations
-alembic revision --autogenerate -m "description"      # new migration
+# Task planning (DAG decomposition)
+hardness plan "Add user authentication with JWT support"
 
-# Run backend dev server from project root
-.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --port 8000
+# Performance benchmarks
+hardness bench
+hardness bench --iterations 20 --output results.json
+
+# Session metrics
+hardness metrics --increment files_checked
+hardness metrics --render
 ```
 
-## Project Structure
+## Plugin Structure
 
 ```
-backend/
-  app/
-    main.py              # FastAPI entry point (lifespan, CORS, routes, /health)
-    config.py            # Pydantic Settings (all env vars)
-    Hardness/
-      planner.py         # TaskPlanner: DAG + Kahn's topological sort, checkpoint recovery
-      context_manager.py # ContextManager: 4-layer assembly with token budgets
-      state_store.py     # StateStore: PG-backed checkpoints + event sourcing
-      tool_registry.py
-      governance.py
-      orchestrator.py
-      evaluator.py
-      mcp_client.py
-      sandbox.py
-    api/v1/
-      tasks.py           # POST /tasks, GET /tasks/{id}, GET /tasks
-      audit.py           # GET /audit (query with filters)
-      approvals.py       # POST /approvals/{id}/approve|deny
-      ws.py              # WebSocket manager + /ws/main endpoint
-    models/
-      task.py            # SQLAlchemy: Hardness_tasks
-      checkpoint.py      # SQLAlchemy: Hardness_checkpoints
-      event.py           # SQLAlchemy: Hardness_events (event sourcing)
-      audit.py           # SQLAlchemy: Hardness_audit_log
-      embedding.py       # SQLAlchemy: code_embeddings (pgvector)
-    db/session.py        # Async SQLAlchemy engine + session factory
-  alembic/               # Database migrations
-  tests/
-    conftest.py          # async pytest fixtures
-    test_planner.py      # DAG ordering, cycle detection, idempotency, checkpoint recovery
-    test_context_manager.py # scope detection, token budgeting, context assembly
-docker/
-  Hardness-orchestrator.Dockerfile
-  Hardness-sandbox.Dockerfile  # non-root user, seccomp, read-only root
-  nginx/nginx.conf            # reverse proxy: /api→orchestrator, /→frontend, /ws→WS
-  postgres/init/              # pgvector extension init
-  seccomp-profile.json        # syscall whitelist for sandbox
-  sandbox-policy.json         # sandbox security policy
-frontend/                # (Phase 3) React + Vite + TypeScript
+hardness_plugin/         # Python package
+├── governance.py        # Constraint engine (6 rules, audit, approval)
+├── planner.py           # DAG task planner with topological sort
+├── tool_registry.py     # 8-step controlled tool pipeline
+├── evaluator.py         # 6-dimension quality assessment (static analysis)
+├── token_optimizer.py   # Token budget management
+├── task_memory.py       # In-memory solution store with similarity search
+├── project_config.py    # Per-project YAML config (.hardness/config.yaml)
+├── benchmarks.py        # Performance benchmark runner
+├── metrics.py           # Prometheus-format metrics collector
+├── cli.py               # Typer CLI
+├── hooks.py             # Hook handlers for settings.json
+└── __init__.py
+tests/                   # 92 unit tests (pytest)
+.claude/
+├── skills/hardness.md   # Plugin skill: slash commands + behaviors
+├── agents/hardness-governor.md  # Governance subagent
+└── settings.json        # Hooks (PostToolUse, PreToolUse, SessionStart)
+.hardness/
+└── config.yaml          # Project-specific governance/evaluation config
 ```
 
-## Architecture (3 Layers)
+## Architecture
 
-**Control Plane**: Task Planner (DAG + topological sort) → Context Manager (4-layer context + token budget) → Governance & Audit (constraints, RBAC, human-in-the-loop)
+The plugin operates within Claude Code via three mechanisms:
 
-**Orchestration Layer**: MCP Server → Agent Loop (Reason→Action→Execute→Evaluate→Feedback, max 5 iterations)
-
-**Execution Environment**: Sandboxed Docker containers (`network_mode: none`, read-only rootfs, seccomp, non-root user, resource limits)
+1. **Hooks** (`.claude/settings.json`) — Automatically run `hardness check` on file writes and security scans before git push
+2. **Skills** (`.claude/skills/hardness.md`) — Slash commands for manual governance checks, evaluation, and task planning
+3. **Agents** (`.claude/agents/hardness-governor.md`) — Specialized subagent for governance constraint review
 
 ## Design Principles
 
-- **Strong Constraints Over Strong Models** — System-enforced rules, not model-requested. Forbidden: raw SQL, `eval()`/`exec()`, hardcoded secrets, blocking I/O in async, circular imports
-- **State Management is Core** — Atomic checkpoint saves, event sourcing, resume from interruption
-- **Bounded Feedback Loops** — Max 5 iterations, cost tracking, human escalation on failure
-- **Security by Design** — Sandboxed exec, RBAC, tamper-evident audit logs, secret detection
-- **Observability** — Real-time WebSocket updates, complete execution traces
+- **Strong Constraints Over Strong Models** — Deterministic rule enforcement via static analysis, not LLM judgment
+- **Zero Infrastructure** — No PostgreSQL, Redis, Docker, or web servers needed
+- **File-Based Config** — Per-project `.hardness/config.yaml` for customization
+- **Fast Execution** — Pure Python stdlib + minimal deps (pydantic, typer, rich, pyyaml)
 
-## Tech Stack
+## Testing
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | FastAPI (Python 3.11+), SQLAlchemy 2.0 async, Pydantic v2 |
-| Frontend | React 18+ + TypeScript 5 (strict), Vite 5, Tailwind CSS 3, Zustand |
-| Agent | Claude Code via MCP, WebSocket |
-| State | PostgreSQL + pgvector, Redis |
-| Infra | Docker + Docker Compose, Nginx, Prometheus + Grafana |
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
 
-## API Conventions
+# Run all tests (92 currently)
+pytest tests/ -v
 
-- REST versioning via URL path (`/api/v1/...`)
-- RFC 7807 Problem Details for errors
-- Bearer JWT in Authorization header
-- WebSocket: JSON messages, 30s ping/pong heartbeat, exponential backoff reconnection
+# Run specific test file
+pytest tests/test_governance.py -v
 
-## Coding Standards
+# Run with coverage
+pytest tests/ --cov=hardness_plugin --cov-report=term
+```
 
-- **Python**: PEP8, mandatory type hints, async/await for all I/O, absolute imports, Google-style docstrings
-- **TypeScript**: strict mode, functional components + hooks, Zod for API validation, Zustand + React Query
+## Key Modules
 
-## Implementation Status
-
-- [x] Phase 1: Foundation — 39 files, 28 tests
-- [x] Phase 2: Integration — 6 Hardness modules, 3 schema modules, 35 new tests (63 total)
-- [x] Phase 3: Frontend — Vite + React + TypeScript dashboard, 14 components, Zustand store, WebSocket hook, API client
-- [x] Phase 4: Governance — Circular imports detection, test coverage checks, notification service (Slack/email), rate limiting middleware, RBAC/JWT middleware, RFC 7807 error handling, 25 new tests (88 total)
-- [x] Phase 5: Optimization — CodeIndexer + SemanticSearcher (pgvector RAG with EmbeddingProvider), TaskMemoryStore (similarity retrieval, tag index, LRU eviction), BenchmarkRunner (p50/p95/p99 percentiles, cost tracking), TokenOptimizer (compression, dedup, budget enforcement), 44 new tests (132 total)
-- [x] Phase 6: Production — MetricsCollector (Prometheus), SecurityAuditor (secrets/deps/container/network), BackupManager (pg_dump/restore), production docker-compose, Nginx SSL/TLS, Grafana dashboard, Alertmanager, 23 new tests (155 total)
-- [x] Phase 7: Hardening — DB persistence in API routes, real embedding provider (API + fallback), token optimizer integration, session cleanup, Pydantic schema validation, frontend build hardening (159 tests total)
-
-## Known Gaps
-
-- **pgvector not functional**: The `code_embeddings` table uses `String` for the embedding column instead of pgvector `Vector` type. ANN search cannot happen at the DB level. A migration is needed to alter the column type.
-- **MCP client not integrated**: The `MCPClient` exists but is never called — the orchestrator calls Anthropic/OpenAI APIs directly.
-- **No WebSocket authentication**: `/ws/main` accepts connections without token validation. Add JWT validation on connect.
-- **Notification services**: `SlackNotificationService` and `EmailNotificationService` are implemented but only `LoggingNotificationService` is wired by default. Set `SLACK_WEBHOOK_URL` env var to enable Slack.
-- **Rate limiting in-memory**: Rate counters reset on restart. Use Redis for production.
-- **Frontend tests not yet implemented**: Test setup file exists but no test files written. Install `vitest` and `@testing-library/react` and add tests for store and key components.
+| Module | Purpose | Dependencies |
+|--------|---------|-------------|
+| `governance.py` | 6 constraint rules + audit + human-in-the-loop approval | None |
+| `planner.py` | DAG task decomposition, Kahn's topological sort, checkpoint recovery | None |
+| `evaluator.py` | 6-dimension code quality scoring (static analysis) | None |
+| `tool_registry.py` | 8-step tool call pipeline with permissions | Pydantic |
+| `token_optimizer.py` | Token budget estimation, truncation, compression | None |
+| `task_memory.py` | Solution memory with hash-based embeddings + cosine similarity | None |
+| `project_config.py` | YAML config loader from `.hardness/config.yaml` | PyYAML |

@@ -1,0 +1,51 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && hardness check --files \"$CLAUDE_TOOL_INPUT_FILE_PATH\" --json 2>&1 || true",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash\\(git push.*\\)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && hardness check --path . --scope security --json 2>&1 || true",
+            "timeout": 30000
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && hardness init --path . --if-missing 2>&1 || true",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(hardness:*)",
+      "Bash(hardness check:*)",
+      "Bash(hardness init:*)",
+      "Bash(hardness evaluate:*)",
+      "Bash(hardness plan:*)",
+      "Bash(hardness bench:*)",
+      "Bash(hardness metrics:*)"
+    ]
+  }
+}

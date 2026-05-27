@@ -1,49 +1,61 @@
 # Hardness Engineering Skill
 
-Use the Hardness MCP server tools whenever you need to ensure code quality, governance compliance, or task planning.
+Use Hardness Engineering to enforce code quality, governance compliance,
+and structured task planning within Claude Code sessions.
 
-## Available Tools
+## When to Apply
 
-- **read_file** — Read file contents from the workspace
-- **write_file** — Write or modify source files
-- **search_code** — Search the codebase for patterns
-- **run_tests** — Execute the test suite with coverage reporting
-- **run_linter** — Run code quality checks (ruff, mypy, black)
-- **run_security_scan** — Run security analysis (bandit, semgrep)
-- **evaluate_code** — Multi-dimensional quality evaluation
+- After writing or editing any Python, TypeScript, JavaScript, or SQL file
+- Before committing or sharing generated code
+- When decomposing complex multi-step tasks into manageable subtasks
+- When token budget is approaching context limits
 
-## Prompts
+## Slash Commands
 
-- Use `/hardness/plan-task` to decompose complex tasks into executable steps
-- Use `/hardness/review-code` to check code against governance constraints
-- Use `/hardness/evaluate` after generating code to validate quality
+| Command | Purpose |
+|---|---|
+| `/hardness:check` | Run governance constraint checks on changed files |
+| `/hardness:evaluate` | Multi-dimensional quality evaluation of generated code |
+| `/hardness:plan` | Decompose a complex task into DAG execution steps |
+| `/hardness:init` | Initialize `.hardness/config.yaml` for a project |
+| `/hardness:bench` | Run performance benchmarks on core modules |
 
-## Governance Rules (enforced by Hardness)
+## Governance Rules (automatically enforced via hooks)
 
-1. No raw SQL without parameterization — use SQLAlchemy ORM
-2. No eval() or exec() in any context
-3. No hardcoded credentials or secrets — use environment variables
-4. No blocking I/O in async functions — use async/await
-5. All Python functions must have type hints
-6. Generated code must include tests (80% coverage minimum)
-7. No circular imports
+1. **no_raw_sql** — No string concatenation or f-strings in SQL queries
+2. **no_eval_exec** — No `eval()` or `exec()` calls
+3. **no_hardcoded_secrets** — No passwords, API keys, or tokens in code
+4. **no_blocking_io_in_async** — No blocking I/O in async functions
+5. **type_safety** — All Python functions must have type hints
+6. **test_coverage** — Generated code must include tests
+7. **no_circular_imports** — No circular import dependencies
+
+The `governance.py` module enforces rules 1-4 deterministically (regex/pattern matching).
+Rules 5-7 are checked via the evaluator's static analysis.
+
+## Hook Automations
+
+PostToolUse hooks automatically run `hardness check --files <file>` on every Write/Edit.
+PreToolUse hooks run security scans before `git push`.
+No manual invocation needed for standard workflows.
 
 ## Project Configuration
 
-Per-project settings are in `.hardness/config.yaml`. Run `Hardness init` to create one.
-
-## Quick Start
-
 ```bash
-# Initialize Hardness in your project
-Hardness init --scope api
+# Initialize per-project settings
+hardness init --scope api
 
-# Start the MCP server (Claude Code will connect automatically)
-Hardness serve --port 8900
+# Check current project
+hardness check --path .
 
-# Run constraint checks manually
-Hardness check
+# Evaluate code quality
+hardness evaluate --path src/
 
-# Run performance benchmarks
-Hardness bench
+# Plan a complex task
+hardness plan "Add user authentication with JWT and refresh tokens"
 ```
+
+Per-project settings at `.hardness/config.yaml` control:
+- `governance.forbidden_patterns` — which rules to enforce
+- `evaluation.test_coverage_min` — minimum test coverage threshold
+- `tools.disabled` — which tools to disable

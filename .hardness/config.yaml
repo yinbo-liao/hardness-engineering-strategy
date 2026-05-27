@@ -1,0 +1,16 @@
+evaluation:
+  lint_max_violations: 0
+  security_max_critical: 0
+  test_coverage_min: 80
+governance:
+  forbidden_patterns:
+  - no_raw_sql
+  - no_eval_exec
+  - no_hardcoded_secrets
+  - no_blocking_io_in_async
+  require_approval_for: []
+project:
+  name: Hardness Engineering Strategy
+  scope: general
+tools:
+  disabled: []
