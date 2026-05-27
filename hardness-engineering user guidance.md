@@ -10,7 +10,7 @@ Hardness Engineering is a **Claude Code plugin** that enforces code quality, sec
 - **Slash commands** let you manually trigger evaluation, planning, and constraint checks
 - **A subagent** can be invoked for deep governance reviews
 
-**Core principle:** > "The system (Hardness) determines the upper bound of capability, not the model."
+**Core principle:** "The system (Hardness) determines the upper bound of capability, not the model."
 
 ---
 
@@ -33,7 +33,7 @@ pip install -e ".[dev]"
 hardness --help
 ```
 
-That's it. No Docker, no database, no Node.js.
+No Docker, no database, no Node.js required.
 
 ### Initialize Your Project
 
@@ -48,9 +48,9 @@ This creates `.hardness/config.yaml` with governance rules and evaluation thresh
 
 ## Using the Plugin
 
-### Slash Commands
+### Slash Commands in Claude Code
 
-In any Claude Code session within this project:
+Open a Claude Code session in your project and use:
 
 | Command | What it Does |
 |---------|-------------|
@@ -60,8 +60,6 @@ In any Claude Code session within this project:
 | `/hardness:init` | Initialize `.hardness/config.yaml` for the current project |
 
 ### CLI Commands
-
-All commands are also available directly via the terminal:
 
 ```bash
 # Check your code against governance rules
@@ -84,7 +82,7 @@ hardness metrics --render
 
 ### Automatic Hook Enforcement
 
-Once configured, Hardness runs automatically:
+Once the plugin is installed and `.claude/settings.json` is present, Hardness runs automatically:
 
 - **After every Write/Edit** — governance constraint check on the modified file
 - **Before git push** — full security scan across all project files
@@ -98,7 +96,7 @@ No manual invocation needed for standard workflows.
 
 ### Governance Rules
 
-Seven constraint rules are enforced:
+Seven constraint rules are enforced deterministically (regex/pattern matching, no LLM):
 
 | Rule | Severity | What it Checks |
 |------|----------|---------------|
@@ -109,8 +107,6 @@ Seven constraint rules are enforced:
 | **type_safety** | MEDIUM | Missing type hints on Python functions |
 | **test_coverage** | HIGH | New code must include or reference tests |
 | **no_circular_imports** | MEDIUM | Mutual import dependencies between modules |
-
-Rules 1-4 are enforced **deterministically** via regex and pattern matching — no LLM judgment involved.
 
 ### Evaluation Dimensions
 
@@ -141,7 +137,7 @@ When using the `tool_registry` module programmatically:
 
 ### Task Planning (DAG)
 
-For complex multi-step tasks, the planner decomposes work into a DAG with topological ordering:
+For complex multi-step tasks, decompose work into a DAG with topological ordering:
 
 ```python
 from hardness_plugin.planner import TaskPlanner, TaskNode
@@ -160,15 +156,15 @@ order = planner.get_execution_order()  # ['step-1', 'step-2', 'step-3']
 
 ```
 Claude Code Session
-    │
+    |
     ├── Hooks (.claude/settings.json)
-    │   ├── PostToolUse (Write/Edit) → hardness check --files <file>
-    │   ├── PreToolUse (git push)    → hardness check --scope security
-    │   └── SessionStart             → hardness init --if-missing
-    │
+    |   ├── PostToolUse (Write/Edit) -> hardness check --files <file>
+    |   ├── PreToolUse (git push)    -> hardness check --scope security
+    |   └── SessionStart             -> hardness init --if-missing
+    |
     ├── Skills (.claude/skills/hardness.md)
-    │   └── Slash commands: /hardness:check, /hardness:evaluate, /hardness:plan
-    │
+    |   └── Slash commands: /hardness:check, /hardness:evaluate, /hardness:plan
+    |
     └── Agents (.claude/agents/hardness-governor.md)
         └── Governance subagent for deep review
 ```
@@ -225,8 +221,6 @@ tools:
 
 ### `.claude/settings.json`
 
-Hooks are configured at the project level:
-
 ```json
 {
   "hooks": {
@@ -254,7 +248,7 @@ Hooks are configured at the project level:
 
 ## Programmatic Usage
 
-### Import as a Python library
+### Import as a Python Library
 
 ```python
 from hardness_plugin import Governance, evaluate_code_quality, TaskPlanner, TaskNode
@@ -280,7 +274,7 @@ planner.add_task(TaskNode(id="2", description="Write tests", deps=["1"]))
 order = planner.get_execution_order()  # ['1', '2']
 ```
 
-### Hook handlers
+### Hook Handlers
 
 ```python
 from hardness_plugin.hooks import post_write_check, pre_push_check, evaluate_file
@@ -299,39 +293,19 @@ result = evaluate_file("src/auth.py")
 
 ## Using the Governance Subagent
 
-When you need a thorough governance review, invoke the subagent:
+When you need a thorough governance review, invoke the subagent within Claude Code:
 
 ```
 /invoke hardness-governor "Review all files under src/ for security violations"
 ```
 
-The subagent:
-1. Scans all Python/TypeScript/SQL files
-2. Runs `hardness check --json` for automated analysis
-3. Reports violations with severity and fix suggestions
-4. Outputs a structured governance report
-
----
-
-## Testing
-
-```bash
-# Run all 92 tests
-pytest tests/ -v
-
-# Run specific module tests
-pytest tests/test_governance.py -v
-pytest tests/test_evaluator.py -v
-
-# With coverage
-pytest tests/ --cov=hardness_plugin --cov-report=term
-```
+The subagent scans Python/TypeScript/SQL files, runs automated analysis, and outputs a structured governance report with severity levels and fix suggestions.
 
 ---
 
 ## Scope Reference
 
-Each governance rule applies to specific project scopes. Choose the right scope for accurate checking:
+Each governance rule applies to specific project scopes:
 
 | Scope | Applies To | Active Rules |
 |-------|-----------|-------------|
@@ -341,46 +315,39 @@ Each governance rule applies to specific project scopes. Choose the right scope 
 | **infra** | Docker, CI/CD, deployment configs | no_blocking_io, secret_detection |
 | **test** | Test files, fixtures, mocks | type_safety |
 | **security** | Auth, encryption, secrets management | All rules — no scope filtering |
-| **general** | Catch-all (default) | Forbidden actions only (eval, exec) — most rules skipped |
+| **general** | Catch-all (default) | Forbidden actions only (eval, exec) |
 | **code** | General Python/TypeScript modules | type_safety, secret_detection, no_circular_imports, test_coverage |
-
-Run `hardness check --scope security` for the most thorough check. Use `--scope api` when working on backend code.
 
 ---
 
 ## Example Workflow
 
-Here's a complete session showing the plugin in action:
+Terminal session:
 
 ```bash
 # 1. Initialize Hardness in your project
 $ hardness init --scope api
 Created .hardness/config.yaml
 
-# 2. Claude generates code (via Claude Code)
-# Claude writes: src/auth.py with JWT authentication logic
+# 2. Claude generates code in Claude Code session
+#    Claude writes: src/auth.py with JWT authentication
 
 # 3. Plugin auto-checks the file (PostToolUse hook)
-# Behind the scenes: hardness check --files src/auth.py
+#    Behind the scenes: hardness check --files src/auth.py
 
 # 4. Manually evaluate quality
 $ hardness evaluate --path src/auth.py
-┌──────────────────────────────────────────────────────────────┐
-│ File        │ Score  │ Tests │ Types │ Lint │ Security │ Status │
-├─────────────┼────────┼───────┼───────┼──────┼──────────┼────────┤
-│ src/auth.py │ 85.5%  │ PASS  │ PASS  │ PASS │ PASS     │ PASS   │
-└──────────────────────────────────────────────────────────────┘
 
 # 5. Check governance before committing
 $ hardness check --path src/
-No violations in 3 file(s)   # Clean — ready to commit
+No violations in 3 file(s)
 
 # 6. Commit and push
 $ git add src/ && git commit -m "Add JWT auth module"
 $ git push   # PreToolUse hook runs security scan before push
 ```
 
-Within Claude Code, the same workflow uses slash commands:
+Within Claude Code:
 
 ```
 /hardness:plan "Add JWT authentication with refresh tokens"
@@ -399,14 +366,11 @@ Within Claude Code, the same workflow uses slash commands:
 
 ### Adding Custom Governance Rules
 
-Create a wrapper that extends the `Governance` class:
-
 ```python
 from hardness_plugin.governance import Governance, ConstraintRule, RiskLevel
 
 gov = Governance()
 
-# Add a custom rule
 def check_no_todo_comments(params: dict) -> dict:
     content = params.get("content", "")
     todos = content.count("TODO") + content.count("FIXME")
@@ -427,35 +391,12 @@ gov.constraint_rules.append(
     )
 )
 
-# Run with the custom rule
 result = gov.check_constraint("write_file", {"content": code}, "api")
-```
-
-### Custom Evaluation Dimensions
-
-Use the `evaluator` module programmatically and add your own dimensions:
-
-```python
-from hardness_plugin.evaluator import evaluate_code_quality
-
-# Run built-in evaluation
-result = evaluate_code_quality("src/module.py", content)
-
-# Add a custom dimension post-hoc
-doc_count = content.count('"""') // 2
-func_count = content.count("def ")
-result["dimensions"]["documentation"] = {
-    "passed": doc_count >= func_count,
-    "score": min(1.0, doc_count / max(1, func_count)),
-    "details": {"functions": func_count, "docstrings": doc_count},
-}
 ```
 
 ---
 
 ## CI/CD Integration
-
-Add Hardness to your CI pipeline for automated governance gates:
 
 ### GitHub Actions
 
@@ -477,41 +418,36 @@ jobs:
         run: |
           PASSED=$(python -c "import json; print(json.load(open('report.json'))['passed'])")
           if [ "$PASSED" != "True" ]; then
-            echo "Governance violations found"
-            cat report.json
-            exit 1
+            echo "Governance violations found"; cat report.json; exit 1
           fi
 ```
 
 ### Pre-commit Hook
 
 ```bash
-# .git/hooks/pre-commit
 #!/bin/bash
-hardness check --path . --scope api
-if [ $? -ne 0 ]; then
+# .git/hooks/pre-commit
+hardness check --path . --scope api || {
     echo "Hardness check failed. Fix violations before committing."
     exit 1
-fi
+}
 ```
 
 ---
 
-## Migration from v1 (Web Application)
+## Testing
 
-If you used the previous Hardness Engineering web application (FastAPI + React + Docker):
+```bash
+# Run all 92 tests
+pytest tests/ -v
 
-| v1 Feature | v2 Equivalent |
-|-----------|---------------|
-| Web dashboard at `localhost:3000` | Slash commands in Claude Code |
-| `POST /api/v1/Hardness/tasks` | `hardness plan "..."` + `hardness check` |
-| Agent Loop Visualizer | Claude Code's built-in agent loop |
-| WebSocket real-time updates | Hook-based file watching |
-| PostgreSQL + Redis | No database needed |
-| Docker sandbox | Claude Code's built-in Bash sandbox |
-| MCP server (`Hardness serve`) | Direct CLI invocation |
+# Run specific module tests
+pytest tests/test_governance.py -v
+pytest tests/test_evaluator.py -v
 
-The governance rules, evaluation dimensions, and constraint logic are identical — only the delivery mechanism changed from a web server to a CLI plugin.
+# With coverage
+pytest tests/ --cov=hardness_plugin --cov-report=term
+```
 
 ---
 
@@ -525,37 +461,24 @@ The governance rules, evaluation dimensions, and constraint logic are identical 
 
 ### Excessive false positives
 
-1. Edit `.hardness/config.yaml` and disable problematic rules under `governance.forbidden_patterns`
+1. Edit `.hardness/config.yaml` — remove rules from `governance.forbidden_patterns`
 2. Use `--scope` to narrow checks: `hardness check --scope api`
 
 ### Module not found
 
 ```bash
-# Reinstall in dev mode
 pip install -e ".[dev]"
 ```
 
 ### Subagent not found
 
-1. Verify `.claude/agents/hardness-governor.md` exists
-2. The agent definitions load automatically when Claude Code opens the project
+Verify `.claude/agents/hardness-governor.md` exists. Agent definitions load automatically when Claude Code opens the project.
 
----
+### JSON output parsing
 
-## Architecture at a Glance
-
-```
-Claude Code Session
-    │
-    ├── Hooks ──→ hardness check (auto on file write)
-    ├── Skills ─→ /hardness:check, /hardness:evaluate, /hardness:plan
-    └── Agents ─→ hardness-governor (deep review)
-    │
-    └── Python Package (hardness_plugin/)
-        ├── governance.py ──→ constraint engine
-        ├── evaluator.py ───→ quality scoring
-        ├── planner.py ─────→ task decomposition
-        └── cli.py ─────────→ command-line interface
+```bash
+hardness check --files src/auth.py --json > report.json
+python -c "import json; print(json.load(open('report.json')))"
 ```
 
 ---
